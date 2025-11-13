@@ -1,198 +1,225 @@
-import sys        # Módulo para acceder a parámetros del sistema, como sys.argv
-import shlex      # Módulo para parsear cadenas de texto complejas (como comandos con espacios)
-import spacy      # La librería principal de NLP que estamos utilizando
+import sys
+import shlex
+import spacy
+from typing import List, Optional
 
-# Definición de la clase NLPDemo que encapsula toda la lógica de la aplicación
 class NLPDemo:
+    """
+    Encapsula la aplicación de demostración de NLP, gestionando el estado
+    (modelo spaCy cargado, modo de salida) de forma segura.
+    """
+    
     # --- Constantes de Clase ---
-    # Banner de bienvenida y ayuda que se muestra al iniciar el REPL o sin argumentos.
+    # Se definen a nivel de clase, son compartidas por todas las instancias.
     BANNER = r'''
 NLP Demo (spaCy) - REPL interactivo
 Comandos:
   :q                salir
   :h                ayuda (este mensaje)
-  :model es         cambiar a modelo español (es_core_news_sm)
-  :model en         cambiar a modelo inglés (en_core_web_sm)
   :brief on|off     alterna salida breve (solo entidades y noun chunks)
 
-Uso:
-  Ejecuta: python nlp_demo_spacy.py --repl
-  Escribe texto en lenguaje natural o código C/C++-like y presiona Enter.
-  Ejemplos:
-    nlp> Juan come manzanas en San Salvador.
-    nlp> int x = 5 + y;
+Modelos (Small - rápidos, menos precisos):
+  :model es         modelo Español (es_core_news_sm)
+  :model en         modelo Inglés (en_core_web_sm)
 
-Notas:
-  Si no tienes modelos instalados:
-    pip install spacy
-    python -m spacy download es_core_news_sm
-    (opcional) python -m spacy download en_core_web_sm
+Modelos (Medium - más lentos, más precisos):
+  :model es_md      modelo Español (es_core_news_md)
+  :model en_md      modelo Inglés (en_core_web_md)
 '''
-    # Diccionario que mapea códigos de idioma a los nombres de los modelos spaCy.
+
     MODELS = {
         "es": "es_core_news_sm",
-        "en": "en_core_web_sm"
+        "en": "en_core_web_sm",
+        "es_md": "es_core_news_md",
+        "en_md": "en_core_web_md"
     }
-    # Conjunto de palabras clave para una heurística rápida para detectar si el texto parece código.
-    CODE_HINTS = {'int', 'bool', 'cout', 'cin', 'if', 'else', 'while', 'for', '==', '&&', '||', ';', '{', '}', '(', ')'}
 
-    # --- Método Constructor ---
-    # Se ejecuta al crear una nueva instancia de NLPDemo.
-    def __init__(self, prefer_es=True):
-        self.nlp = None             # Objeto principal de spaCy (el pipeline de procesamiento), inicialmente None.
-        self.model_name = None      # Nombre del modelo spaCy cargado, inicialmente None.
-        self.brief_output = False   # Bandera para controlar la salida breve en el análisis, inicialmente False.
-        self.prefer_es = prefer_es  # Bandera para indicar la preferencia inicial de idioma (español), True por defecto.
-        self._load_spacy_model()    # Llama al método para cargar el modelo spaCy al inicializar la clase.
+    CODE_HINTS = {
+        'int', 'bool', 'cout', 'cin', 'if', 'else', 'while', 'for', 
+        '==', '&&', '||', ';', '{', '}', '(', ')', '->', '::',
+        'SELECT', 'FROM', 'WHERE', 'INSERT', 'UPDATE', 'JOIN',
+        'def', 'class', 'import', 'elif', 'print'
+    }
 
-    # --- Métodos Privados (Auxiliares) ---
+    # --- Métodos de Instancia ---
+    
+    def __init__(self):
+        """
+        Constructor: Inicializa el estado de la instancia.
+        No se carga ningún modelo aquí; se cargará en run_app.
+        """
+        # El estado ahora está "encapsulado" y protegido dentro de 'self'
+        # 'Optional[spacy.Language]' es type hinting: "puede ser None o un objeto nlp de spaCy"
+        self.nlp: Optional[spacy.Language] = None
+        self.model_name: Optional[str] = None
+        self.brief_output: bool = False
 
-    # Método para cargar los modelos de spaCy.
-    def _load_spacy_model(self):
-        # Determina el orden en que se intentarán cargar los modelos, basado en 'prefer_es'.
-        # Si prefer_es es True, intenta español, luego inglés. Si es False, intenta inglés, luego español.
-        model_order = ["es", "en"] if self.prefer_es else ["en", "es"]
-        
-        last_error = None # Variable para guardar el último error si falla la carga.
+    def _load_spacy_model(self, model_key: str) -> bool:
+        """
+        Intenta cargar un modelo de spaCy por su clave ('es', 'es_md', etc.).
+        Actualiza el estado de la instancia (self.nlp) si tiene éxito.
+        Devuelve True si se cargó, False si falló.
+        """
+        model_to_load = self.MODELS.get(model_key)
+        if not model_to_load:
+            print(f"Error: Clave de modelo '{model_key}' no válida.")
+            print(f"Usa una de las claves definidas en :h (ej: :model es_md)")
+            return False
 
-        # Itera a través del orden de modelos definido.
-        for lang_code in model_order:
-            model_to_load = self.MODELS[lang_code] # Obtiene el nombre completo del modelo del diccionario MODELS.
-            try:
-                self.nlp = spacy.load(model_to_load) # Intenta cargar el modelo de spaCy.
-                self.model_name = model_to_load      # Si tiene éxito, guarda el nombre del modelo.
-                return                               # Sale de la función, la carga fue exitosa.
-            except Exception as e:
-                last_error = e                       # Si falla, guarda el error y continúa con el siguiente modelo.
-        
-        # Si el bucle termina y ningún modelo se pudo cargar, lanza una excepción SystemExit.
-        # Esto detiene la ejecución del programa con un mensaje informativo.
-        raise SystemExit(
-            "No se encontraron modelos spaCy.\n"
-            "Instala:\n"
-            "  pip install spacy\n"
-            "  python -m spacy download es_core_news_sm\n"
-            "  (opcional) python -m spacy download en_core_web_sm\n"
-            f"Detalle: {last_error}" # Muestra el último error ocurrido.
-        )
+        print(f"\nCargando modelo '{model_to_load}'... (puede tardar si es grande)")
+        try:
+            # Actualiza el estado de la instancia
+            self.nlp = spacy.load(model_to_load)
+            self.model_name = model_to_load
+            print(f"[OK] Modelo cargado: {self.model_name}")
+            return True
+        except (IOError, OSError) as e:
+            print(f"\n--- ERROR AL CARGAR MODELO (¿Instalado?) ---")
+            print(f"Error: No se pudo cargar el modelo '{model_to_load}'.")
+            print(f"  Asegúrate de tenerlo instalado:")
+            print(f"  python -m spacy download {model_to_load}")
+            print(f"Detalle: {e}")
+            print("------------------------------------------\n")
+            return False
+        # Captura para cualquier otro error inesperado
+        except Exception as e:
+            print(f"\n--- ERROR INESPERADO ---")
+            print(f"Detalle: {e}")
+            print("--------------------------\n")
+            return False
 
-    # Método heurístico para determinar si un texto parece código.
-    def _looks_like_code(self, text):
-        # Comprueba si alguna de las palabras clave en CODE_HINTS está presente en el texto.
-        # 'any()' devuelve True si al menos una es encontrada.
-        return any(h in text for h in self.CODE_HINTS)
+    def _looks_like_code(self, text: str) -> bool:
+        """Heurística simple para detectar si el texto parece código."""
+        words = set(text.split())
+        for hint in self.CODE_HINTS:
+            if hint in text: 
+                return True
+            if hint in words: 
+                return True
+        return False
 
-    # --- Métodos Públicos ---
-
-    # Realiza el análisis NLP de un texto dado.
-    def analyze_text(self, text):
-        if not self.nlp: # Verifica si se ha cargado un modelo NLP.
+    def analyze_text(self, text: str):
+        """
+        Analiza un texto dado usando el modelo NLP cargado en la instancia.
+        """
+        if not self.nlp:
             print("[Error] No hay un modelo spaCy cargado.")
-            return       # Si no hay modelo, no se puede analizar, así que sale.
+            return
 
-        doc = self.nlp(text) # Procesa el texto con el pipeline de spaCy para crear un objeto 'Doc'.
-        print(f"== spaCy (modelo: {self.model_name}) ==") # Imprime el encabezado con el modelo actual.
-        print(f"Entrada: {text}\n") # Muestra el texto de entrada.
+        doc = self.nlp(text)
+        print(f"\n== spaCy (modelo: {self.model_name}) ==")
+        print(f"Entrada: {text}\n")
 
-        # Si la salida breve no está activada, muestra el análisis detallado de los tokens.
+        # 1. Tokens (usa el estado self.brief_output)
         if not self.brief_output:
             print("1) Tokens (texto | lemma | POS | dep | cabeza)")
-            for t in doc: # Itera sobre cada token en el objeto Doc.
-                # Imprime el texto del token, su lema, su parte de la oración (POS),
-                # su dependencia sintáctica (dep) y el texto de su "cabeza" (el token del que depende).
+            for t in doc:
                 print(f" - {t.text:15} | {t.lemma_:15} | {t.pos_:6} | {t.dep_:12} | {t.head.text}")
 
         print("\n2) Frases nominales (noun chunks):")
-        # Intenta obtener los 'noun chunks' (frases nominales). Si 'noun_chunks' no existe (poco probable con modelos estándar),
-        # devuelve una lista vacía para evitar errores.
         chunks = list(doc.noun_chunks) if hasattr(doc, 'noun_chunks') else []
-        if chunks: # Si se encontraron frases nominales.
-            for ch in chunks: # Itera y las imprime.
+        if chunks:
+            for ch in chunks:
                 print(f" - {ch.text}")
         else:
-            print(" - (no detectadas)") # Si no se encontraron.
+            print(" - (no detectadas)")
 
         print("\n3) Entidades nombradas (texto | etiqueta):")
-        if doc.ents: # Si se encontraron entidades nombradas (personas, lugares, organizaciones, etc.).
-            for ent in doc.ents: # Itera y las imprime.
-                # Imprime el texto de la entidad y su etiqueta (tipo de entidad).
+        if doc.ents:
+            for ent in doc.ents:
                 print(f" - {ent.text:25} | {ent.label_}")
         else:
-            print(" - (no se encontraron entidades)") # Si no se encontraron.
+            print(" - (no se encontraron entidades)")
 
-        print("\n4) Observaciones:")
-        # Utiliza la heurística para determinar si el texto parece código.
+        print("\n4) Observaciones (Heurística):")
+        # Llama al método de la instancia
         if self._looks_like_code(text):
-            print(" - Parece código C/C++-like: NLP no está diseñado para extraer AST de código;")
-            print("   tu parser descendente sí estructura este tipo de entrada.")
+            print(" - PARECE CÓDIGO FORMAL: spaCy no está diseñado para esto.")
+            print("   El análisis de NLP (POS/dep) probablemente sea incorrecto.")
+            print("   Un parser descendente formal SÍ entendería esta estructura.")
         else:
-            print(" - Parece lenguaje natural: NLP aporta POS/dep/chunks/NER útiles;")
-            print("   en cambio, el parser formal de C++ fallaría con estas frases.")
+            print(" - PARECE LELENGUAJE NATURAL: spaCy está diseñado para esto.")
+            print("   El análisis de NLP (POS/dep/NER) debería ser útil.")
+            print("   Un parser formal (ej: C++) fallaría instantáneamente con esta entrada.")
 
-    # Ejecuta el bucle REPL (Read-Eval-Print Loop) interactivo.
     def run_repl(self):
-        print(self.BANNER) # Muestra el banner al inicio del REPL.
-        print(f"[OK] Modelo cargado: {self.model_name}") # Confirma el modelo cargado.
+        """
+        Ejecuta el bucle interactivo (REPL).
+        Asume que un modelo ya fue cargado por run_app.
+        """
+        print(self.BANNER)
+        print(f"[OK] Modelo inicial cargado: {self.model_name}")
 
-        while True: # Bucle infinito para el REPL.
+        while True:
             try:
-                line = input("nlp> ") # Solicita entrada al usuario.
-            except (EOFError, KeyboardInterrupt): # Captura Ctrl+D (EOF) o Ctrl+C (KeyboardInterrupt).
-                print("\nSaliendo...") # Mensaje de salida.
-                break # Sale del bucle REPL.
+                line = input("\nnlp> ")
+            except (EOFError, KeyboardInterrupt):
+                print("\nSaliendo...")
+                break
 
-            if not line.strip(): # Si la línea está vacía o solo contiene espacios, la ignora y continúa.
+            if not line.strip():
                 continue
 
             # --- Manejo de Comandos ---
-            if line.strip() in (":q", ":quit", ":exit"): # Comando para salir.
-                break # Sale del bucle REPL.
-            elif line.strip() in (":h", ":help"): # Comando de ayuda.
-                print(self.BANNER) # Muestra el banner de nuevo.
-            elif line.startswith(":model"): # Comando para cambiar el modelo.
-                parts = shlex.split(line) # Divide la línea en partes, manejando comillas.
-                # Verifica que el comando tenga 2 partes y que el idioma sea válido.
-                if len(parts) == 2 and parts[1] in self.MODELS:
-                    self.prefer_es = (parts[1] == "es") # Actualiza la preferencia de idioma.
-                    try:
-                        self._load_spacy_model() # Intenta cargar el nuevo modelo.
-                        print(f"[OK] Modelo cargado: {self.model_name}") # Confirma la carga.
-                    except SystemExit as e: # Si la carga falla, imprime el error y permite continuar el REPL.
-                        print(e)
+            if line.strip() in (":q", ":quit", ":exit"):
+                break
+            elif line.strip() in (":h", ":help"):
+                print(self.BANNER)
+            elif line.startswith(":model"):
+                parts = shlex.split(line)
+                if len(parts) == 2:
+                    self._load_spacy_model(parts[1])
+                     # Llama al método de la instancia
                 else:
-                    print("Uso: :model es | :model en") # Mensaje de uso incorrecto.
-            elif line.startswith(":brief"): # Comando para alternar la salida breve.
-                parts = shlex.split(line) # Divide la línea en partes.
-                # Verifica que el comando tenga 2 partes y que la opción sea válida.
+                    print("Uso: :model [clave_modelo] (ej: :model es_md)")
+            elif line.startswith(":brief"):
+                parts = shlex.split(line)
                 if len(parts) == 2 and parts[1] in ("on", "off"):
-                    self.brief_output = (parts[1] == "on") # Actualiza la bandera de salida breve.
-                    print(f"[OK] brief = {self.brief_output}") # Confirma el estado.
+                    self.brief_output = (parts[1] == "on")
+                     # Actualiza el estado de la instancia
+                    print(f"[OK] brief = {self.brief_output}")
                 else:
-                    print("Uso: :brief on | :brief off") # Mensaje de uso incorrecto.
-            else: # Si no es un comando, se asume que es texto para analizar.
+                    print("Uso: :brief on | :brief off")
+            else:
+                # --- Análisis de Texto ---
                 try:
-                    self.analyze_text(line) # Llama al método de análisis.
-                except Exception as e: # Captura cualquier error durante el análisis del texto.
-                    print(f"[Error] {e}") # Imprime el error.
+                    self.analyze_text(line)
+                except Exception as e:
+                    print(f"[Error inesperado] {e}")
 
-# --- Función Principal ---
+    def run_app(self, argv: List[str]):
+        """
+        Lógica principal de la aplicación: carga modelos y decide
+        si correr el REPL o un análisis único.
+        """
+        # 1. Cargar modelo inicial
+        if not self._load_spacy_model("es"):
+            if not self._load_spacy_model("en"):
+                print("\nError fatal: No se pudo cargar ningún modelo. Saliendo.")
+                print("Instala un modelo para continuar, ej:")
+                print("  python -m spacy download es_core_news_sm")
+                return # Termina la ejecución
 
-# Punto de entrada principal del script cuando se ejecuta directamente.
-def main(argv):
-    # Crea una instancia de NLPDemo. Por defecto, intentará cargar el modelo español primero.
-    demo = NLPDemo(prefer_es=True) 
-    
-    # Comprueba si el primer argumento es '--repl'.
-    if len(argv) >= 2 and argv[1] == "--repl":
-        demo.run_repl() # Si es '--repl', ejecuta el modo interactivo.
-    # Comprueba si hay al menos un argumento además del nombre del script (es decir, texto para analizar).
-    elif len(argv) >= 2:
-        # Une todos los argumentos desde el segundo en adelante para formar el texto completo.
-        demo.analyze_text(" ".join(argv[1:])) # Analiza el texto directamente.
-    else:
-        # Si no se proporcionan argumentos específicos, muestra el banner con las instrucciones.
-        print(demo.BANNER)
+        # 2. Decidir modo de operación
+        if len(argv) >= 2 and argv[1] == "--repl":
+            self.run_repl()
+        elif len(argv) >= 2:
+            text_to_analyze = " ".join(argv[1:])
+            self.analyze_text(text_to_analyze)
+        else:
+            print(self.BANNER)
+            print("\nPara iniciar, ejecuta: python nlp_demo_spacy.py --repl")
 
-# Bloque estándar para asegurar que 'main()' se llama solo cuando el script se ejecuta directamente.
+# --- Punto de entrada del script ---
+
+def main(argv: List[str]):
+    """
+    Función principal: crea la instancia de la aplicación
+    y ejecuta su lógica principal.
+    """
+    app = NLPDemo()
+    app.run_app(argv)
+
 if __name__ == "__main__":
-    main(sys.argv) # Pasa los argumentos de la línea de comandos a la función main.
+    # sys.argv es la lista de argumentos de la línea de comandos
+    main(sys.argv)
