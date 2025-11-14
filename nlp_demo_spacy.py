@@ -1,4 +1,7 @@
 import sys
+# shlex es una librería clave para construir "mini-shells" o REPLs.
+# Su función split() es mucho más robusta que line.split() porque
+# maneja correctamente las comillas y los espacios, como un shell de Unix.
 import shlex
 import spacy
 from typing import List, Optional
@@ -69,10 +72,14 @@ Modelos (Medium - más lentos, más precisos):
         print(f"\nCargando modelo '{model_to_load}'... (puede tardar si es grande)")
         try:
             # Actualiza el estado de la instancia
+            # Llama a spacy.load para cargar el modelo en los paquetes de python
             self.nlp = spacy.load(model_to_load)
             self.model_name = model_to_load
             print(f"[OK] Modelo cargado: {self.model_name}")
             return True
+        
+        # Captura de errores que son las excepciones especificas que spacy puede lanzar
+        # para reflejar el nuevo modelo cargado en la instancia
         except (IOError, OSError) as e:
             print(f"\n--- ERROR AL CARGAR MODELO (¿Instalado?) ---")
             print(f"Error: No se pudo cargar el modelo '{model_to_load}'.")
@@ -111,6 +118,7 @@ Modelos (Medium - más lentos, más precisos):
         print(f"Entrada: {text}\n")
 
         # 1. Tokens (usa el estado self.brief_output)
+        # El comporatamiento depende del estado de la instancia
         if not self.brief_output:
             print("1) Tokens (texto | lemma | POS | dep | cabeza)")
             for t in doc:
@@ -221,5 +229,6 @@ def main(argv: List[str]):
     app.run_app(argv)
 
 if __name__ == "__main__":
+    # '__name__' es el entry point estándar en Python
     # sys.argv es la lista de argumentos de la línea de comandos
     main(sys.argv)
