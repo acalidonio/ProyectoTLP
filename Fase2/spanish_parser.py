@@ -1,5 +1,8 @@
+"""
+Gramatica: Sujeto → Verbo → Objeto
+"""
+
 class Token:
-    """Representa un token con su tipo y valor"""
     def __init__(self, tipo, valor):
         self.tipo = tipo
         self.valor = valor
@@ -8,9 +11,7 @@ class Token:
         return f"Token({self.tipo}, '{self.valor}')"
 
 
-class Lexer:
-    """Analizador léxico - convierte texto en tokens"""
-    
+class Lexer:    
     def __init__(self):
         # Vocabulario limitado
         self.articulos = {"el", "la", "un", "una", "los", "las"}
@@ -25,12 +26,11 @@ class Lexer:
         }
         self.adjetivos = {
             "grande", "pequeño", "rojo", "azul", "verde", "amarillo",
-            "hermoso", "feo", "nuevo", "viejo", "rápido", "lento",
+            "hermoso", "feo", "nueva", "viejo", "rápido", "lento",
             "inteligente", "feliz", "triste"
         }
     
     def tokenizar(self, texto):
-        """Convierte una cadena de texto en lista de tokens"""
         palabras = texto.lower().strip().split()
         tokens = []
         
@@ -49,9 +49,7 @@ class Lexer:
         return tokens
 
 
-class Parser:
-    """Parser descendente recursivo para gramática simplificada"""
-    
+class Parser:   
     def __init__(self, tokens):
         self.tokens = tokens
         self.pos = 0
@@ -59,17 +57,14 @@ class Parser:
         self.arbol = None
     
     def token_actual(self):
-        """Retorna el token actual o None si llegamos al final"""
         if self.pos < len(self.tokens):
             return self.tokens[self.pos]
         return None
     
     def avanzar(self):
-        """Avanza al siguiente token"""
         self.pos += 1
     
-    def esperar(self, tipo_esperado):
-        """Verifica que el token actual sea del tipo esperado"""
+    def verificar_tipo(self, tipo_esperado):
         token = self.token_actual()
         if token is None:
             self.errores.append(f"Se esperaba {tipo_esperado} pero se llegó al final")
@@ -92,7 +87,7 @@ class Parser:
         arbol["hijos"].append(sujeto)
         
         # Parsear Verbo
-        if not self.esperar("VERBO"):
+        if not self.verificar_tipo("VERBO"):
             return None
         verbo = {"tipo": "Verbo", "valor": self.token_actual().valor}
         arbol["hijos"].append(verbo)
@@ -118,7 +113,7 @@ class Parser:
         sintagma = {"tipo": nombre, "hijos": []}
         
         # Artículo (obligatorio)
-        if not self.esperar("ARTICULO"):
+        if not self.verificar_tipo("ARTICULO"):
             return None
         sintagma["hijos"].append({
             "tipo": "Artículo", 
@@ -135,7 +130,7 @@ class Parser:
             self.avanzar()
         
         # Sustantivo (obligatorio)
-        if not self.esperar("SUSTANTIVO"):
+        if not self.verificar_tipo("SUSTANTIVO"):
             return None
         sintagma["hijos"].append({
             "tipo": "Sustantivo",
@@ -146,12 +141,10 @@ class Parser:
         return sintagma
     
     def parsear(self):
-        """Inicia el proceso de parseo"""
         self.arbol = self.parsear_oracion()
         return self.arbol is not None
     
     def imprimir_arbol(self, nodo=None, nivel=0):
-        """Imprime el árbol de parseo de forma jerárquica"""
         if nodo is None:
             nodo = self.arbol
         
@@ -168,28 +161,37 @@ class Parser:
                     self.imprimir_arbol(hijo, nivel + 1)
 
 
+class Color:
+    HEADER = '\033[95m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+
+
 def analizar_oracion(texto):
-    """Función principal para analizar una oración"""
     print(f"\n{'='*60}")
-    print(f"Analizando: '{texto}'")
-    print('='*60)
+    print(f"{Color.BLUE}{Color.BOLD}Analizando cadena: {Color.ENDC}'{texto}'")
     
     # Tokenización
     lexer = Lexer()
     tokens = lexer.tokenizar(texto)
-    print(f"\nTokens: {tokens}")
+    print(f"\n{Color.CYAN}{Color.BOLD}Tokens: {Color.ENDC}{tokens}")
     
     # Parseo
     parser = Parser(tokens)
     exito = parser.parsear()
     
     if exito:
-        print("\n✓ ORACIÓN VÁLIDA")
-        print("\nÁrbol de parseo:")
+        print(f"\n{Color.GREEN}{Color.BOLD}[ ACEPTADO ]{Color.ENDC} ORACIÓN VÁLIDA")
+        print(f"\n{Color.CYAN}{Color.BOLD}Arbol de parseo:{Color.ENDC}")
         parser.imprimir_arbol()
     else:
-        print("\n✗ ORACIÓN INVÁLIDA")
-        print("\nErrores encontrados:")
+        print(f"\n{Color.FAIL}{Color.BOLD}[ RECHAZADO ]{Color.ENDC} ORACIÓN INVÁLIDA")
+        print(f"\n{Color.WARNING}Errores encontrados:{Color.ENDC}")
         for error in parser.errores:
             print(f"  • {error}")
     
@@ -198,37 +200,27 @@ def analizar_oracion(texto):
 
 # Ejemplos de prueba
 if __name__ == "__main__":
-    print("PARSER DESCENDENTE RECURSIVO - ESPAÑOL SIMPLIFICADO")
-    print("Fase 2: Mini-parser para lenguaje natural limitado\n")
-    
     # Ejemplos VÁLIDOS
-    print("\n" + "="*60)
-    print("EJEMPLOS VÁLIDOS")
-    print("="*60)
+    print("\n" + "="*60 + "\n")
+    print(f"{Color.HEADER}{Color.BOLD} EJEMPLOS VÁLIDOS{Color.ENDC}")
     
     oraciones_validas = [
-        "el gato come un libro",
-        "la niña lee el libro",
-        "un pequeño perro mira la casa",
-        "el estudiante inteligente estudia un libro nuevo",
-        "los hermanos compran una computadora rápida"
+        "la niña vende la nueva computadora",
+        "el inteligente estudiante estudia un viejo libro",
+        "el perro mira el rápido gato"
     ]
     
     for oracion in oraciones_validas:
         analizar_oracion(oracion)
     
     # Ejemplos INVÁLIDOS
-    print("\n\n" + "="*60)
-    print("EJEMPLOS INVÁLIDOS")
-    print("="*60)
+    print("\n\n" + "="*60 + "\n")
+    print(f"{Color.HEADER}{Color.BOLD} EJEMPLOS INVÁLIDOS{Color.ENDC}")
     
     oraciones_invalidas = [
         "gato come libro",  # Falta artículos
         "el gato el perro",  # Falta verbo
-        "come el libro",  # Falta sujeto
-        "el gato come",  # Falta objeto
-        "el hermoso",  # Oración incompleta
-        "perro el come libro el",  # Orden incorrecto
+        "Los gato un come coche",  # Errores de concordancia
     ]
     
     for oracion in oraciones_invalidas:
