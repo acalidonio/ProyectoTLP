@@ -1,7 +1,3 @@
-"""
-Gramatica: Sujeto → Verbo → Objeto
-"""
-
 class Token:
     def __init__(self, tipo, valor):
         self.tipo = tipo
@@ -173,8 +169,7 @@ class Color:
 
 
 def analizar_oracion(texto):
-    print(f"\n{'='*60}")
-    print(f"{Color.BLUE}{Color.BOLD}Analizando cadena: {Color.ENDC}'{texto}'")
+    
     
     # Tokenización
     lexer = Lexer()
@@ -211,6 +206,8 @@ if __name__ == "__main__":
     ]
     
     for oracion in oraciones_validas:
+        print(f"\n{'='*60}")
+        print(f"{Color.BLUE}{Color.BOLD}Analizando cadena: {Color.ENDC}'{oracion}'")
         analizar_oracion(oracion)
     
     # Ejemplos INVÁLIDOS
@@ -218,10 +215,12 @@ if __name__ == "__main__":
     print(f"{Color.HEADER}{Color.BOLD} EJEMPLOS INVÁLIDOS{Color.ENDC}")
     
     oraciones_invalidas = [
-        "gato come libro",  # Falta artículos
+        "el humano lee libro",  # Humano no está en la gramática
         "el gato el perro",  # Falta verbo
         "Los gato un come coche",  # Errores de concordancia
     ]
     
     for oracion in oraciones_invalidas:
+        print(f"\n{'='*60}")
+        print(f"{Color.BLUE}{Color.BOLD}Analizando cadena: {Color.ENDC}'{oracion}'")
         analizar_oracion(oracion)

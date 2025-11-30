@@ -1,5 +1,4 @@
 import spacy
-from spanish_parser import Lexer, Parser, analizar_oracion
 
 # Cargar modelo de spaCy para español
 try:
@@ -23,9 +22,6 @@ class Color:
 
 def analizar_spacy(texto):
     doc = nlp(texto)
-    
-    print(f"\n{'='*60}")
-    print(f"{Color.BLUE}{Color.BOLD}SpaCy - Analizando cadena: {Color.ENDC}'{texto}'")
     
     # Análisis morfológico
     print(f"\n{Color.CYAN}{Color.BOLD}Análisis morfológico (POS tagging):{Color.ENDC}")
@@ -64,10 +60,12 @@ if __name__ == "__main__":
         "el perro mira el rápido gato",
         # Errores en el parser normal
         "gato come libro",  # Falta artículos
-        "el gato el perro",  # Falta verbo
+        "el humano lee libro",  # Humano no está en la gramática original
         "Los gato un come coche",  # Errores de concordancia
         "veo al hombre con el telescopio" # Ambiguedad
     ]
     
     for oracion in oraciones_prueba:
+        print(f"\n{'='*60}")
+        print(f"{Color.BLUE}{Color.BOLD}SpaCy - Analizando cadena: {Color.ENDC}'{oracion}'")
         resultados = analizar_spacy(oracion)
