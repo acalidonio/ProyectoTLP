@@ -1,9 +1,3 @@
-"""
-Parser Descendente Recursivo para Español Simplificado
-Fase 2 - Proyecto TLP02-2025
-Gramática: Oración → Sujeto Verbo Objeto
-"""
-
 class Token:
     """Representa un token con su tipo y valor"""
     def __init__(self, tipo, valor):

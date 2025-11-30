@@ -1,9 +1,3 @@
-"""
-Script de Demostración para Presentación Final
-Fase 2 - Proyecto TLP02-2025
-Duración sugerida: 15-20 minutos
-"""
-
 import time
 import sys
 
